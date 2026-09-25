@@ -1,0 +1,83 @@
+---
+title: Сужение типов
+description: unknown, union, дискриминанты и satisfies.
+---
+
+# Сужение типов
+
+<Callout type="info">Уровень: middle.</Callout>
+
+## Вопрос
+
+Чем `unknown` отличается от `any`, и как сузить union?
+
+## Короткий ответ
+
+`any` отключает проверку: значение можно передать куда угодно и читать у него любые поля. `unknown` тоже означает «тип пока не знаем», но читать поля и передавать в функцию можно только после проверки.
+
+Union `A | B` сужается проверкой, после которой в ветке остаётся один вариант:
+
+- `typeof` для примитивов;
+- `===` по дискриминанту;
+- `'field' in obj`;
+- `instanceof` для классов;
+- пользовательский предикат `function isUser(v: unknown): v is User`.
+
+Дискриминированное объединение — union объектов с общим литеральным полем, например `status: 'idle' | 'loading' | 'success' | 'error'`. В ветке `status === 'success'` компилятор видит `data`, в ветке ошибки — `message`.
+
+## Разбор
+
+Состояние запроса лучше одной моделью, чем набором независимых флагов `isLoading`, `error`, `data`, которые можно включить одновременно.
+
+```ts
+type RequestState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; message: string }
+```
+
+`satisfies` проверяет, что выражение подходит под тип, и сохраняет более узкий вывод. `const palette = { brand: '#111' } satisfies Record<string, string>` не даст опечатку в значении и оставит конкретный ключ `brand`, тогда как аннотация `Record<string, string>` размоет ключи до `string`.
+
+## На что смотрят на senior
+
+Исчерпывающая проверка: в `switch` по дискриминанту ветка `default` принимает `never`. Если в union добавят вариант и забудут обработать, компилятор укажет на это место.
+
+На границе с JSON данные приходят как `unknown`. Парсер (zod, valibot или ручной type guard) один раз сужает их до типа приложения. Дальше по коду `any` не течёт.
+
+## Типичные ошибки
+
+- Писать `as User` вместо проверки. Утверждение говорит компилятору «верь мне» и ломается в рантайме.
+- Держать `error: string | null` рядом с `data: User | null` без связи между ними.
+- Путать `satisfies` с приведением. `satisfies` не расширяет тип насильно, он только проверяет совместимость.
+
+## Задача
+
+Почему этот `switch` не даёт прочитать `data` в ветке успеха и как описать состояние, чтобы давал?
+
+```ts
+type State = { status: string; data?: User; message?: string }
+
+function label(state: State) {
+  switch (state.status) {
+    case 'success':
+      return state.data.name
+  }
+}
+```
+
+<Answer>
+
+`status: string` — это любая строка, ветка `success` ничего не сужает. `data` остаётся опциональным.
+
+Нужен дискриминант-литерал:
+
+```ts
+type State =
+  | { status: 'success'; data: User }
+  | { status: 'error'; message: string }
+```
+
+В `case 'success'` у `data` тип `User`, опциональная цепочка не нужна.
+
+</Answer>

@@ -1,0 +1,87 @@
+---
+title: TypeScript во Vue
+description: Пропсы, дженерик-компоненты, InstanceType и типы экосистемы.
+---
+
+# TypeScript во Vue
+
+<Callout type="info">Уровень: middle. Дженерик-компонент и module augmentation ближе к senior и к своей UI-библиотеке.</Callout>
+
+## Вопрос
+
+Как типизировать `<script setup>`, ссылку на дочерний компонент и composable, который принимает и значение, и ref?
+
+## Короткий ответ
+
+Пропсы описывают типом в `defineProps<Props>()`. Значения по умолчанию для объектов и массивов — через `withDefaults`, чтобы дефолт был фабрикой, а не общей ссылкой. События — через `defineEmits`. С Vue 3.3 короткая форма кортежей: `defineEmits<{ change: [id: number] }>()`.
+
+Ссылка на DOM: `ref<HTMLInputElement | null>(null)`. Ссылка на компонент: `ref<InstanceType<typeof MyModal> | null>(null)`. Методы, открытые через `defineExpose`, тогда видны у `modalRef.value`. Тип пропсов чужого компонента без ручного экспорта берут как `ComponentProps<typeof MyButton>`.
+
+Универсальный список или селект помечают `generic` на `<script setup>`. Родитель передаёт `User[]`, и событие выбора возвращает `User`, а не `any`.
+
+Composable, которому всё равно, пришли примитив, ref или геттер, принимает `MaybeRefOrGetter<T>` и читает значение через `toValue`.
+
+## Разбор
+
+Дженерик-компонент:
+
+```vue
+<script setup lang="ts" generic="T extends { id: number | string; label: string }">
+defineProps<{
+  items: T[]
+  selectedItem: T | null
+}>()
+
+const emit = defineEmits<{
+  select: [item: T]
+}>()
+</script>
+```
+
+`MaybeRefOrGetter<string>` — это `string | Ref<string> | (() => string)`. Внутри composable не пишут цепочку `isRef`.
+
+Поля `route.meta` по умолчанию почти пустые. Свои флаги добавляют расширением модуля, не заменой:
+
+```ts
+import 'vue-router'
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    requiresAuth?: boolean
+    role?: 'admin' | 'user' | 'guest'
+  }
+}
+```
+
+Импорт `'vue-router'` нужен, чтобы TypeScript дополнил модуль. Так же расширяют `vue`: `ComponentCustomProperties` для `$api` на экземпляре.
+
+`customRef` сам решает, когда звать `track` и `trigger`. Так делают debounced-поле: сеттер пишет значение спустя задержку и только тогда будит подписчиков. Дженерик на фабрике (`useDebouncedRef<T>`) сохраняет тип значения.
+
+Готовые утилиты `Omit`, `Pick`, `Partial`, `Record`, `ReturnType` для форм и фильтров разобраны в разделе [условных типов](/typescript/conditional-types). Во Vue тот же приём: `Omit<User, 'id' | 'createdAt'>` для формы создания, `Partial<Filters>` для необязательных полей фильтра.
+
+## На что смотрят на senior
+
+`InstanceType` видит только то, что компонент отдал наружу. Закрытый ref из `<script setup>` с родителя не типизируется и не должен читаться. Публичный метод — осознанный `defineExpose`.
+
+Module augmentation живёт в `*.d.ts`, который входит в компиляцию. Файл рядом с фичей, не подключённый в `tsconfig`, молча ничего не расширит.
+
+Дженерик на каждый презентационный компонент шумит. Он нужен, когда один компонент обслуживает разные сущности и тип события должен совпасть с типом элемента. Экран заказа знает свой `Order` и без параметра типа.
+
+## Типичные ошибки
+
+- Писать `inject('key')` строкой и приводить результат через `as`.
+- Забывать `| null` у template ref: до монтирования значения нет.
+- Аннотировать аргумент composable как `Ref<T>` и ломать вызов с обычной строкой.
+- Расширять `RouteMeta` через новый `interface` в своём файле без `declare module`.
+
+## Задача
+
+`const modal = ref(null)` указывает на компонент с `defineExpose({ open })`. Почему `modal.value?.open()` для TypeScript — ошибка и чем типизировать ref?
+
+<Answer>
+
+`ref(null)` выводится как `Ref<null>`. У `null` нет `open`.
+
+Нужно `ref<InstanceType<typeof MyModal> | null>(null)`. `InstanceType` видит только то, что отдано через `defineExpose`. Закрытый ref из `<script setup>` снаружи так не достать.
+
+</Answer>

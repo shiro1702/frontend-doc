@@ -1,0 +1,23 @@
+---
+title: Карта тем
+description: Оглавление подготовки к собеседованию frontend middle и senior.
+---
+
+# Карта тем
+
+Сайт для подготовки к собеседованию на frontend middle и senior. Каждая страница — отдельный Markdown-файл в `content/`: Nextra подхватывает его как маршрут, строит сайдбар и оглавление.
+
+<Cards>
+  <Cards.Card title="Лайвкодинг" href="/live-coding" />
+  <Cards.Card title="JavaScript" href="/js" />
+  <Cards.Card title="CSS" href="/css" />
+  <Cards.Card title="TypeScript" href="/typescript" />
+  <Cards.Card title="Браузер" href="/browser" />
+  <Cards.Card title="Vue 2 и Vue 3" href="/vue" />
+</Cards>
+
+## Как пользоваться
+
+На middle достаточно уверенно закрыть короткий ответ и типичные ошибки. На senior к каждому разбору добавлен блок «на что смотрят»: границы задачи, производительность, типы API, отличия версий фреймворка.
+
+Поиск в шапке индексирует собранные страницы после `npm run build`.

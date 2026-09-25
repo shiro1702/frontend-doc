@@ -1,0 +1,90 @@
+---
+title: Тестирование
+description: Vitest, Vue Test Utils и проверка composable.
+---
+
+# Тестирование
+
+<Callout type="info">Уровень: middle.</Callout>
+
+## Вопрос
+
+Что проверять у Vue-компонента и как прогнать composable, который зовёт `onMounted`?
+
+## Короткий ответ
+
+Тестируют контракт: что видит пользователь и какие события уходят наружу. Внутреннее `wrapper.vm.counter = 5` привязывает тест к реализации. Раннер — Vitest, монтирование — `@vue/test-utils`.
+
+Клик и ввод идут через `trigger` и `setValue`. Обновление DOM асинхронное, поэтому `await` обязателен. События читают из `wrapper.emitted()`.
+
+Composable без хуков жизненного цикла тестируют как обычную функцию. Если внутри `onMounted`, `onUnmounted` или `inject`, функцию вызывают из `setup` маленького приложения и монтируют его на элемент. Иначе Vue не к кому привязать эффект.
+
+E2E (Playwright, Cypress) идут по сценарию в браузере. Юнит не заменяет проверку «открыл модалку, отправил форму, увидел ошибку сети», и наоборот: e2e не обязан покрывать каждый computed.
+
+## Разбор
+
+```ts
+import { mount } from '@vue/test-utils'
+import Counter from './Counter.vue'
+
+test('увеличивает счётчик по клику', async () => {
+  const wrapper = mount(Counter)
+  await wrapper.find('button').trigger('click')
+  expect(wrapper.text()).toContain('Count: 1')
+  expect(wrapper.emitted()).toHaveProperty('increment')
+})
+```
+
+Обёртка для composable с хуками:
+
+```ts
+import { createApp } from 'vue'
+
+export function withSetup<T>(composable: () => T) {
+  let result: T
+  const app = createApp({
+    setup() {
+      result = composable()
+      return () => {}
+    },
+  })
+  app.mount(document.createElement('div'))
+  return { result: result!, app }
+}
+```
+
+После кейса приложение размонтируют, если composable повесил слушатель. Иначе тесты делят один `window`.
+
+Моки сети и роутера подставляют на границе: `global.provide` или плагин тестового роутера. Компонент не переписывают так, чтобы он умел работать без Pinia. Если стор обязателен, в тесте создают настоящий маленький стор с фикстурой, а не мокают каждый экшен.
+
+## На что смотрят на senior
+
+Снимок всего HTML хрупок. Утверждение про текст кнопки и факт эмита живёт дольше вёрстки. Снимок уместен на стабильном куске дизайн-системы, не на каждом экране.
+
+Гонку запросов юнит ловит, если composable принимает источник и часы. Таймеры переводят через fake timers Vitest, а не `setTimeout` в тесте на реальные 300 мс.
+
+Покрытие папок `components` само по себе ничего не говорит. Смотрят, есть ли тест на отказ: пустой список, ошибка запроса, повторный клик, пока прошлый запрос ещё идёт.
+
+## Типичные ошибки
+
+- Забывать `await` у `trigger` и читать старый текст.
+- Проверять приватный ref вместо DOM и эмитов.
+- Вызывать composable с `onMounted` прямо в тесте, мимо `setup`.
+- Путать юнит компонента с e2e и тащить браузер на проверку одного computed.
+
+## Задача
+
+Тест кликает по кнопке и сразу проверяет текст счётчика. Текст старый, хотя компонент рабочий. Что пропущено?
+
+```ts
+wrapper.find('button').trigger('click')
+expect(wrapper.text()).toContain('1')
+```
+
+<Answer>
+
+Перед `trigger` нет `await`. Обновление DOM после клика асинхронное, утверждение читает текст до патча. Нужно `await wrapper.find('button').trigger('click')`.
+
+Проверять стоит текст или `wrapper.emitted()`, не `wrapper.vm.count`. Внутреннее поле привяжет тест к реализации и пройдёт даже при сломанной вёрстке.
+
+</Answer>
