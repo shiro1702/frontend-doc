@@ -1,0 +1,25 @@
+{
+  "name": "frontend-doc",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "postbuild": "pagefind --site out --output-path out/_pagefind",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^16.3.6",
+    "nextra": "^4.6.1",
+    "nextra-theme-docs": "^4.6.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "pagefind": "^1.5.2",
+    "typescript": "^6.0.3"
+  }
+}

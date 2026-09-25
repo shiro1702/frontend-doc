@@ -1,0 +1,29 @@
+.interview-answer {
+  margin-top: 1.25rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.75rem;
+  padding: 0.15rem 1rem 0.35rem;
+}
+
+.interview-answer summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.7rem 0;
+  list-style: none;
+}
+
+.interview-answer summary::-webkit-details-marker {
+  display: none;
+}
+
+.interview-answer summary::before {
+  content: '▸ ';
+}
+
+.interview-answer[open] summary::before {
+  content: '▾ ';
+}
+
+.interview-answer__body > :first-child {
+  margin-top: 0;
+}
